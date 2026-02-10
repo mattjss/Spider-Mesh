@@ -1,18 +1,17 @@
-# Spider Mesh
+# Spider-Mesh
 
-An interactive **spider mesh** pattern built with Three.js, React Three Fiber, and Tweakpane.
+Pattern experiment. Spider particle mesh.
 
 ## About
 
-Spider Mesh is a responsive grid of nodes that react to the pointer: nodes near the cursor grow and brighten, and thin lines connect the active hub to nearby nodes, forming a web-like cluster.
+A cursor-following spider mesh: dense grid of orange dots on black. The cursor is the hub; the closest particles stretch toward it (elastic pull), scale up, and connect with lines. Legs have configurable stretch and elastic overshoot.
 
 ## Tech stack
 
 - **Vite** – build tool
-- **React** – UI
-- **Three.js** – 3D / WebGL
-- **React Three Fiber** – React renderer for Three.js
-- **Tweakpane** – live parameter controls
+- **TypeScript** – language
+- **Canvas 2D** – rendering
+- **Tweakpane** – live controls
 
 ## Setup
 
@@ -21,7 +20,7 @@ npm install
 npm run dev
 ```
 
-Open the URL shown in the terminal (e.g. `http://localhost:5173`). Move the pointer over the canvas to interact with the mesh. Use the Tweakpane panel to adjust grid size, node sizes, interaction radius, connection radius, and colors.
+Open the URL (e.g. `http://localhost:5173`). Move the cursor over the canvas. Use the Tweakpane panel for grid spacing, neighbor count, pull strength, elasticity, and colors.
 
 ## Scripts
 
