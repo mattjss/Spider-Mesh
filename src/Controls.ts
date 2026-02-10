@@ -5,6 +5,7 @@ export interface Params {
   neighborCount: number
   maxDistance: number
   pullStrength: number
+  pullElasticity: number
   fadeInSpeed: number
   fadeOutSpeed: number
   hubSize: number
@@ -17,7 +18,8 @@ const defaultParams: Params = {
   gridSpacing: 40,
   neighborCount: 18,
   maxDistance: 250,
-  pullStrength: 0.12,
+  pullStrength: 0.22,
+  pullElasticity: 0.15,
   fadeInSpeed: 0.25,
   fadeOutSpeed: 0.08,
   hubSize: 4,
@@ -40,7 +42,8 @@ export function createControls(): { params: Params; pane: Pane } {
   const spider = pane.addFolder({ title: 'Spider' })
   spider.addBinding(params, 'neighborCount', { min: 8, max: 32, step: 1 })
   spider.addBinding(params, 'maxDistance', { min: 100, max: 400, step: 10 })
-  spider.addBinding(params, 'pullStrength', { min: 0.02, max: 0.3, step: 0.01 })
+  spider.addBinding(params, 'pullStrength', { min: 0.05, max: 0.45, step: 0.01 })
+  spider.addBinding(params, 'pullElasticity', { min: 0, max: 0.4, step: 0.02 })
   spider.addBinding(params, 'hubSize', { min: 2, max: 12, step: 1 })
 
   const animation = pane.addFolder({ title: 'Animation' })

@@ -56,13 +56,18 @@ export class SpiderMesh {
     this.currentNeighbors = neighbors
     const neighborIds = new Set(neighbors.map((p) => p.id))
 
+    const pullElasticity = this.paramsRef.current.pullElasticity ?? 0
+    const pullFactor = 1 + pullElasticity
+
     this.particles.forEach((p) => {
       p.isActive = neighborIds.has(p.id)
       if (p.isActive) {
         const dx = mouseX - p.x
         const dy = mouseY - p.y
-        p.displayX = p.x + dx * pullStrength
-        p.displayY = p.y + dy * pullStrength
+        const targetX = p.x + dx * pullStrength
+        const targetY = p.y + dy * pullStrength
+        p.displayX += (targetX - p.displayX) * pullFactor
+        p.displayY += (targetY - p.displayY) * pullFactor
         p.targetScale = 3
         p.targetOpacity = 1
       } else {

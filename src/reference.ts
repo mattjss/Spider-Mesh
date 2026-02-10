@@ -11,6 +11,7 @@ interface Config {
   neighborCount: number
   maxDistance: number
   pullStrength: number
+  pullElasticity: number
   fadeInSpeed: number
   fadeOutSpeed: number
   hubSize: number
@@ -22,7 +23,8 @@ const CONFIG: Config = {
   gridSpacing: 40,
   neighborCount: 18,
   maxDistance: 250,
-  pullStrength: 0.12,
+  pullStrength: 0.22,
+  pullElasticity: 0.15,
   fadeInSpeed: 0.25,
   fadeOutSpeed: 0.08,
   hubSize: 4,
@@ -132,8 +134,11 @@ function animate(): void {
     if (p.isActive) {
       const dx = mouseX - p.x
       const dy = mouseY - p.y
-      p.displayX = p.x + dx * CONFIG.pullStrength
-      p.displayY = p.y + dy * CONFIG.pullStrength
+      const targetX = p.x + dx * CONFIG.pullStrength
+      const targetY = p.y + dy * CONFIG.pullStrength
+      const pullFactor = 1 + CONFIG.pullElasticity
+      p.displayX += (targetX - p.displayX) * pullFactor
+      p.displayY += (targetY - p.displayY) * pullFactor
       p.targetScale = 3
       p.targetOpacity = 1
     } else {
