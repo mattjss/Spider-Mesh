@@ -7,7 +7,8 @@ export interface SpiderMeshParams {
   nodeBaseSize: number
   nodeActiveSize: number
   interactionRadius: number
-  connectionRadius: number
+  springStiffness: number
+  springDamping: number
   nodeInactiveOpacity: number
   nodeActiveOpacity: number
   lineOpacity: number
@@ -20,16 +21,42 @@ const tempVec2 = new THREE.Vector2()
 const tempColor = new THREE.Color()
 const tempMatrix = new THREE.Matrix4()
 
+/** Grid index to row/col */
+function indexToRowCol(idx: number, n: number) {
+  const i = Math.floor(idx / n)
+  const j = idx % n
+  return { i, j }
+}
+
+/** Get 8-connected grid neighbor indices (no diagonal = 4-connected; with diagonal = 8) */
+function getGridNeighbors(centerIndex: number, n: number): number[] {
+  const { i, j } = indexToRowCol(centerIndex, n)
+  const out: number[] = []
+  for (let di = -1; di <= 1; di++) {
+    for (let dj = -1; dj <= 1; dj++) {
+      if (di === 0 && dj === 0) continue
+      const ni = i + di
+      const nj = j + dj
+      if (ni >= 0 && ni < n && nj >= 0 && nj < n) out.push(ni * n + nj)
+    }
+  }
+  return out
+}
+
 interface SpiderMeshProps {
   paramsRef: React.MutableRefObject<SpiderMeshParams>
 }
 
 export default function SpiderMesh({ paramsRef }: SpiderMeshProps) {
   const { camera, pointer } = useThree()
-  const instancedRef = useRef<THREE.InstancedMesh>(null)
+  const dotsRef = useRef<THREE.InstancedMesh>(null)
+  const squaresRef = useRef<THREE.InstancedMesh>(null)
   const linesRef = useRef<THREE.LineSegments>(null)
   const mouseRef = useRef(new THREE.Vector3(0, 0, 0))
   const positionsRef = useRef<THREE.Vector3[]>([])
+  const activeRef = useRef<Float32Array>(new Float32Array(0))
+  const velocityRef = useRef<Float32Array>(new Float32Array(0))
+  const lineStrengthRef = useRef(0)
 
   const { gridSize } = paramsRef.current
 
@@ -38,28 +65,34 @@ export default function SpiderMesh({ paramsRef }: SpiderMeshProps) {
     const positions: THREE.Vector3[] = []
     for (let i = 0; i < n; i++) {
       for (let j = 0; j < n; j++) {
-        const x = (j / (n - 1)) * 2 - 1
-        const y = (i / (n - 1)) * 2 - 1
+        const x = (j / Math.max(1, n - 1)) * 2 - 1
+        const y = (i / Math.max(1, n - 1)) * 2 - 1
         positions.push(new THREE.Vector3(x, y, 0))
       }
     }
     positionsRef.current = positions
+    const len = positions.length
+    activeRef.current = new Float32Array(len)
+    velocityRef.current = new Float32Array(len)
     return { positions }
   }, [gridSize])
 
-  const lineCount = gridSize * gridSize * 2
-  const linePositions = useMemo(() => new Float32Array(lineCount * 3), [lineCount])
+  const N = positions.length
+  const n = gridSize
+  const maxLines = 8
+  const linePositions = useMemo(() => new Float32Array(maxLines * 2 * 3), [])
 
-  const [geo, lineGeo] = useMemo(() => {
-    const plane = new THREE.PlaneGeometry(1, 1)
-    const lineGeo = new THREE.BufferGeometry()
-    lineGeo.setAttribute('position', new THREE.BufferAttribute(linePositions, 3))
-    return [plane, lineGeo]
+  const [dotGeo, squareGeo, lineGeo] = useMemo(() => {
+    const dot = new THREE.CircleGeometry(1, 12)
+    const square = new THREE.PlaneGeometry(1, 1)
+    const line = new THREE.BufferGeometry()
+    line.setAttribute('position', new THREE.BufferAttribute(linePositions, 3))
+    return [dot, square, line]
   }, [linePositions])
 
-  useFrame(() => {
+  useFrame((_, delta) => {
     const params = paramsRef.current
-    if (!instancedRef.current || !linesRef.current) return
+    if (!dotsRef.current || !squaresRef.current || !linesRef.current) return
 
     tempVec2.set(pointer.x, pointer.y)
     tempVec3.set(tempVec2.x, tempVec2.y, 0)
@@ -70,60 +103,86 @@ export default function SpiderMesh({ paramsRef }: SpiderMeshProps) {
 
     const mouse = mouseRef.current
     const positions = positionsRef.current
-    const N = positions.length
 
     let centerIndex = -1
     let minDist = params.interactionRadius
-
     for (let i = 0; i < N; i++) {
-      const p = positions[i]
-      const d = p.distanceTo(mouse)
+      const d = positions[i].distanceTo(mouse)
       if (d < minDist) {
         minDist = d
         centerIndex = i
       }
     }
 
-    const center = centerIndex >= 0 ? positions[centerIndex] : null
-    const activeSet = new Set<number>()
-    if (center) {
-      for (let i = 0; i < N; i++) {
-        if (positions[i].distanceTo(center) <= params.connectionRadius) activeSet.add(i)
-      }
+    const hubSet = new Set<number>()
+    let neighborIndices: number[] = []
+    if (centerIndex >= 0) {
+      hubSet.add(centerIndex)
+      neighborIndices = getGridNeighbors(centerIndex, n)
+      neighborIndices.forEach((idx) => hubSet.add(idx))
     }
 
-    const scale = new THREE.Vector3(1, 1, 1)
-    tempColor.set(params.nodeColor)
+    const dt = Math.min(delta * 60, 2)
+    const stiffness = params.springStiffness * dt
+    const damping = Math.pow(params.springDamping, dt)
+    const active = activeRef.current
+    const velocity = velocityRef.current
+
+    for (let i = 0; i < N; i++) {
+      const target = hubSet.has(i) ? 1 : 0
+      let v = velocity[i]
+      let a = active[i]
+      v += (target - a) * stiffness
+      v *= damping
+      a += v
+      a = THREE.MathUtils.clamp(a, 0, 1)
+      velocity[i] = v
+      active[i] = a
+    }
+
+    const baseSize = params.nodeBaseSize
+    const activeSize = params.nodeActiveSize
+    const scaleVec = new THREE.Vector3(1, 1, 1)
 
     for (let i = 0; i < N; i++) {
       const p = positions[i]
-      const d = mouse.distanceTo(p)
-      const t = Math.max(0, 1 - d / params.interactionRadius)
-      const s = THREE.MathUtils.lerp(params.nodeBaseSize, params.nodeActiveSize, t)
-      tempColor.set(params.nodeColor)
-      const dark = new THREE.Color(params.nodeColor).multiplyScalar(0.25)
-      tempColor.lerp(dark, 1 - t)
-      const opacity = THREE.MathUtils.lerp(params.nodeInactiveOpacity, params.nodeActiveOpacity, t)
-      tempColor.multiplyScalar(0.4 + 0.6 * opacity)
+      const a = active[i]
+      const dotScale = baseSize * (1 - a)
+      const squareScale = activeSize * a
 
       tempMatrix.identity()
       tempMatrix.makeTranslation(p.x, p.y, p.z)
-      tempMatrix.scale(scale.setScalar(s))
-      instancedRef.current.setMatrixAt(i, tempMatrix)
-      instancedRef.current.setColorAt(i, tempColor)
-      instancedRef.current.instanceMatrix.needsUpdate = true
-      if (instancedRef.current.instanceColor) instancedRef.current.instanceColor.needsUpdate = true
+      tempMatrix.scale(scaleVec.setScalar(dotScale))
+      dotsRef.current.setMatrixAt(i, tempMatrix)
+      tempColor.set(params.nodeColor)
+      tempColor.multiplyScalar(0.3 + 0.7 * (1 - a) * params.nodeInactiveOpacity + 0.7 * a * params.nodeActiveOpacity)
+      dotsRef.current.setColorAt(i, tempColor)
+
+      tempMatrix.identity()
+      tempMatrix.makeTranslation(p.x, p.y, p.z + 0.001)
+      tempMatrix.scale(scaleVec.setScalar(squareScale))
+      squaresRef.current.setMatrixAt(i, tempMatrix)
+      tempColor.set(params.nodeColor)
+      tempColor.multiplyScalar(0.5 + 0.5 * params.nodeActiveOpacity)
+      squaresRef.current.setColorAt(i, tempColor)
     }
+    dotsRef.current.instanceMatrix.needsUpdate = true
+    if (dotsRef.current.instanceColor) dotsRef.current.instanceColor.needsUpdate = true
+    squaresRef.current.instanceMatrix.needsUpdate = true
+    if (squaresRef.current.instanceColor) squaresRef.current.instanceColor.needsUpdate = true
+
+    const targetLineStrength = centerIndex >= 0 ? 1 : 0
+    lineStrengthRef.current += (targetLineStrength - lineStrengthRef.current) * (1 - Math.exp(-8 * delta * 60))
 
     const posAttr = linesRef.current.geometry.attributes.position as THREE.BufferAttribute
     const posArray = posAttr.array as Float32Array
     let idx = 0
-    if (center && activeSet.size > 0) {
+    if (centerIndex >= 0 && neighborIndices.length > 0) {
+      const center = positions[centerIndex]
       const cx = center.x
       const cy = center.y
       const cz = center.z
-      activeSet.forEach((i) => {
-        if (i === centerIndex) return
+      for (const i of neighborIndices) {
         const q = positions[i]
         posArray[idx++] = cx
         posArray[idx++] = cy
@@ -131,7 +190,7 @@ export default function SpiderMesh({ paramsRef }: SpiderMeshProps) {
         posArray[idx++] = q.x
         posArray[idx++] = q.y
         posArray[idx++] = q.z
-      })
+      }
     }
     while (idx < posArray.length) {
       posArray[idx++] = 0
@@ -142,12 +201,16 @@ export default function SpiderMesh({ paramsRef }: SpiderMeshProps) {
       posArray[idx++] = 0
     }
     posAttr.needsUpdate = true
-    linesRef.current.geometry.setDrawRange(0, (idx / 6) * 2)
+    const lineCount = neighborIndices.length
+    linesRef.current.geometry.setDrawRange(0, lineCount * 2)
+
+    const mat = linesRef.current.material as THREE.LineBasicMaterial
+    mat.opacity = params.lineOpacity * lineStrengthRef.current
   })
 
   return (
     <group>
-      <instancedMesh ref={instancedRef} args={[geo, undefined, positions.length]} frustumCulled={false}>
+      <instancedMesh ref={dotsRef} args={[dotGeo, undefined, N]} frustumCulled={false}>
         <meshBasicMaterial
           vertexColors={true}
           transparent
@@ -155,12 +218,22 @@ export default function SpiderMesh({ paramsRef }: SpiderMeshProps) {
           toneMapped={false}
         />
       </instancedMesh>
+      <instancedMesh ref={squaresRef} args={[squareGeo, undefined, N]} frustumCulled={false}>
+        <meshBasicMaterial
+          vertexColors={true}
+          transparent
+          opacity={1}
+          toneMapped={false}
+          depthWrite={false}
+        />
+      </instancedMesh>
       <lineSegments ref={linesRef} geometry={lineGeo} frustumCulled={false}>
         <lineBasicMaterial
           color={paramsRef.current.lineColor}
           transparent
-          opacity={paramsRef.current.lineOpacity}
+          opacity={paramsRef.current.lineOpacity * lineStrengthRef.current}
           toneMapped={false}
+          depthWrite={false}
         />
       </lineSegments>
     </group>

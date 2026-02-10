@@ -15,7 +15,8 @@ const defaultParams: SpiderMeshParams = {
   nodeBaseSize: 0.02,
   nodeActiveSize: 0.08,
   interactionRadius: 0.35,
-  connectionRadius: 0.4,
+  springStiffness: 0.18,
+  springDamping: 0.82,
   nodeInactiveOpacity: 0.25,
   nodeActiveOpacity: 1,
   lineOpacity: 0.6,
@@ -39,7 +40,9 @@ function App() {
 
     const interaction = pane.addFolder({ title: 'Interaction' })
     interaction.addBinding(paramsRef.current, 'interactionRadius', { min: 0.1, max: 0.8, step: 0.05 })
-    interaction.addBinding(paramsRef.current, 'connectionRadius', { min: 0.1, max: 0.9, step: 0.05 })
+    const spring = pane.addFolder({ title: 'Spring' })
+    spring.addBinding(paramsRef.current, 'springStiffness', { min: 0.05, max: 0.5, step: 0.01 })
+    spring.addBinding(paramsRef.current, 'springDamping', { min: 0.5, max: 0.98, step: 0.01 })
 
     const appearance = pane.addFolder({ title: 'Appearance' })
     appearance.addBinding(paramsRef.current, 'nodeInactiveOpacity', { min: 0.05, max: 1, step: 0.05 })
