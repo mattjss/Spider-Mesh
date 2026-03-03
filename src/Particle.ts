@@ -34,18 +34,18 @@ export class Particle {
     ctx: CanvasRenderingContext2D,
     color: string,
     particleMinSize: number,
-    particleMaxSize: number
+    particleMaxSize: number,
+    offsetX = 0,
+    offsetY = 0,
+    overrideOpacity?: number
   ): void {
     const size =
       particleMinSize +
       (particleMaxSize - particleMinSize) * ((this.scale - 1) / 2)
+    const x = this.displayX + offsetX
+    const y = this.displayY + offsetY
     ctx.fillStyle = color
-    ctx.globalAlpha = this.opacity
-    ctx.fillRect(
-      this.displayX - size / 2,
-      this.displayY - size / 2,
-      size,
-      size
-    )
+    ctx.globalAlpha = overrideOpacity ?? this.opacity
+    ctx.fillRect(x - size / 2, y - size / 2, size, size)
   }
 }
