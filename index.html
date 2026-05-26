@@ -126,6 +126,11 @@
     return s - Math.floor(s);
   }
 
+  // ── Color cycling ─────────────────────────────────────────────────────────
+  const COLORS = ['#ffffff', '#ff6b35', '#ffd93b', '#2ecc71', '#3498db', '#9b59b6'];
+  let colorIndex = 0;
+  let meshColor  = COLORS[0];
+
   // ── State ─────────────────────────────────────────────────────────────────
   let cursorX = -1000, cursorY = -1000, cursorActive = false;
   let currentNeighbors = [];
@@ -139,6 +144,12 @@
     cursorActive = true;
   });
   canvas.addEventListener('mouseleave', () => { cursorActive = false; });
+
+  canvas.addEventListener('contextmenu', e => {
+    e.preventDefault();
+    colorIndex = (colorIndex + 1) % COLORS.length;
+    meshColor  = COLORS[colorIndex];
+  });
 
   canvas.addEventListener('click', e => {
     const r  = canvas.getBoundingClientRect();
@@ -208,8 +219,8 @@
 
     ctx.save();
     ctx.translate(0.5, 0.5);
-    ctx.fillStyle   = 'rgba(255,255,255,1)';
-    ctx.strokeStyle = 'rgba(255,255,255,1)';
+    ctx.fillStyle   = meshColor;
+    ctx.strokeStyle = meshColor;
 
     const hubOff = rippleOffset({ x: cursorX, y: cursorY }, now);
     const hx = cursorX + hubOff.dx;
