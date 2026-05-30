@@ -25,7 +25,7 @@ const defaultParams: Params = {
   hubSize: 4,
   particleMinSize: 1.5,
   particleMaxSize: 6,
-  particleColor: '#00ff88',
+  particleColor: '#8b5cf6',
 }
 
 type PaneWithFolder = Pane & {
