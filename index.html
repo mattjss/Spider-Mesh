@@ -163,13 +163,15 @@
   });
 
   // ── Audio ─────────────────────────────────────────────────────────────────
+  let audioMuted = new URLSearchParams(location.search).has('embed');
+  window.addEventListener('message', e => { if (e.data?.type === 'setMuted') audioMuted = !!e.data.muted; });
   let clickAudio = null;
   function initAudio() {
     if (clickAudio) return;
     clickAudio = new Audio('./sounds/selection.mp3');
     clickAudio.volume = 0.42;
   }
-  function playClick() { initAudio(); clickAudio.currentTime = 0; clickAudio.play().catch(()=>{}); }
+  function playClick() { if (audioMuted) return; initAudio(); clickAudio.currentTime = 0; clickAudio.play().catch(()=>{}); }
 
   // ── Update ────────────────────────────────────────────────────────────────
   function update() {
